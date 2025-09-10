@@ -61,19 +61,17 @@ internal object S3 : UploadService {
             throw IllegalArgumentException("S3 bucket $bucket not found")
         
         this.directory = (cfg.node("directory").string?.addSuffix("/") ?: "")
-
-        this.urlFormat = when (cfg.node("url_style").string?.lowercase()) {
-            "path" -> "https://$endpoint/$bucket/$directory%s"
-            "vhost" -> "https://$bucket.$endpoint/$directory%s"
-            else -> throw IllegalArgumentException("S3 url_style is invalid (must be \"path\" or \"vhost\")")
-        }
+        this.urlFormat = if (forcePathStyle)
+            "https://$endpoint/$bucket/$directory%s"
+        else
+            "https://$bucket.$endpoint/$directory%s"
     }
     
     override suspend fun upload(file: Path): String {
-        val key = StringUtils.randomString(5)
+        val name = StringUtils.randomString(5)
         val req = PutObjectRequest.builder()
             .bucket(bucket)
-            .key(directory + key)
+            .key(directory + name)
             .build()
         val resp = client!!.putObject(req, file).sdkHttpResponse()
         
@@ -95,7 +93,7 @@ internal object S3 : UploadService {
                     + delResp.sdkHttpResponse().statusText().orElse(""))
         }
         
-        val url = urlFormat.format(key)
+        val url = urlFormat.format(name)
         PermanentStorage.store("lastS3Url", url)
         PermanentStorage.store("lastS3Bucket", bucket)
         return url
