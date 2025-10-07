@@ -45,13 +45,24 @@ abstract class BuildBundlerJarTask : DefaultTask() {
         val jar = buildDir.resolve("Nova-${project.version}.jar")
         ZipOutputStream(jar.outputStream()).use { out ->
             include(out, input.files)
-            
+
             // include dependencies
             val runtimeArtifacts = nova.configurations.getByName("mojangMappedServerRuntime").incoming.artifacts.artifacts
                 .mapNotNullTo(HashSet()) { (it.id.componentIdentifier as? ModuleComponentIdentifier)?.moduleIdentifier }
+            val paperLibraries = nova.configurations.findByName("paperLibrary")
+                ?.dependencies
+                ?.mapNotNullTo(HashSet()) { dep ->
+                    val group = dep.group ?: return@mapNotNullTo null
+                    group to dep.name
+                }
+                ?: emptySet<Pair<String, String>>()
             nova.configurations.getByName("novaLoader").incoming.artifacts.artifacts
                 .asSequence()
                 .filter { (it.id.componentIdentifier as ModuleComponentIdentifier).moduleIdentifier !in runtimeArtifacts }
+                .filter { artifact ->
+                    val id = artifact.id.componentIdentifier as ModuleComponentIdentifier
+                    (id.group to id.module) !in paperLibraries
+                }
                 .forEach { artifact ->
                     val file = artifact.file
                     val id = artifact.id.componentIdentifier as ModuleComponentIdentifier
@@ -60,7 +71,7 @@ abstract class BuildBundlerJarTask : DefaultTask() {
                     file.inputStream().use { inp -> inp.transferTo(out) }
                 }
         }
-        
+
         return jar
     }
     

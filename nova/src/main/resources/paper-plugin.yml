@@ -8,6 +8,7 @@ bootstrapper: xyz.xenondevs.nova.NovaBootstrapper
 main: xyz.xenondevs.nova.Nova
 load: STARTUP
 
+${paperLibrariesYaml}
 dependencies:
   server:
     WorldGuard:
