@@ -1,3 +1,5 @@
+import org.gradle.api.artifacts.ExternalModuleDependency
+
 plugins {
     id("nova.kotlin-conventions")
     id("nova.paper-conventions")
@@ -9,12 +11,14 @@ plugins {
 
 dependencies {
     // api dependencies
-    novaLoaderApi(libs.bundles.kotlin)
     novaLoaderApi(libs.bundles.cbf)
     novaLoaderApi(libs.bundles.xenondevs.commons)
     novaLoaderApi(libs.invui.kotlin)
     novaLoaderApi(libs.joml.primitives)
-    novaLoaderApi(libs.kotlinx.serialization.json)
+
+    // paper provided dependencies
+    paperLibrary(libs.bundles.kotlin)
+    paperLibrary(libs.kotlinx.serialization.json)
     
     // internal dependencies
     compileOnly(project(":nova-api"))
@@ -41,11 +45,38 @@ dependencies {
 // configure java sources location
 sourceSets.main { java.setSrcDirs(listOf("src/main/kotlin/")) }
 
+val paperLibraryCoordinates = providers.provider {
+    configurations.getByName("paperLibrary").dependencies
+        .filterIsInstance<ExternalModuleDependency>()
+        .mapNotNull { dep ->
+            val group = dep.group ?: return@mapNotNull null
+            val version = dep.version ?: return@mapNotNull null
+            "$group:${dep.name}:$version"
+        }
+        .sorted()
+}
+
 tasks {
-    withType<ProcessResources> {
+    withType<ProcessResources>().configureEach {
+        val libraries = paperLibraryCoordinates.get()
+        inputs.property("paperLibraries", libraries)
+
         filesMatching("paper-plugin.yml") {
             val properties = HashMap(project.properties)
             properties["apiVersion"] = libs.versions.paper.get().substring(0, 4)
+            val librariesBlock = if (libraries.isEmpty()) {
+                "libraries: []"
+            } else {
+                buildString {
+                    append("libraries:\n")
+                    libraries.forEach { coordinate ->
+                        append("  - ")
+                        append(coordinate)
+                        append('\n')
+                    }
+                }.trimEnd()
+            }
+            properties["paperLibrariesYaml"] = librariesBlock
             expand(properties)
         }
     }
